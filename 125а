@@ -1,0 +1,83 @@
+XX 
+ В веб-интерфейсе Proxmox:
+В дереве ресурсов выберите виртуальную машину BR-SRV.
+Перейдите во вкладку Hardware.
+Дважды кликните по устройству CD/DVD Drive (ide2) (или выберите и нажмите Edit).
+В поле Media выберите Use CD/DVD disc image file (iso).
+Storage: выберите local.
+ISO image: выберите файл Additional.iso.DE-09.02.06-1-2026.v1.PVE-ASDaC.iso.
+Нажмите OK.
+XX
+
+#BR-SRV#
+mkdir -p /mnt/cdrom
+mount /dev/sr0 /mnt/cdrom
+
+apt-get update && apt-get install -y docker-engine docker-compose-v2
+systemctl enable --now docker
+
+docker load -i /mnt/cdrom/docker/site_latest.tar
+docker load -i /mnt/cdrom/docker/mariadb_latest.tar
+
+docker images
+
+== Вы должны увидеть таблицу с двумя образами: site (tag: latest) и mariadb (tag: latest или версия). ==
+
+mkdir -p /opt/testapp
+cd /opt/testapp
+
+cat <<EOF > docker-compose.yaml
+services:
+  db:
+    container_name: db
+    image: mariadb:latest
+    environment:
+      MYSQL_DATABASE: testdb
+      MYSQL_USER: testc
+      MYSQL_PASSWORD: P@ssw0rd
+      MYSQL_ROOT_PASSWORD: toor
+    volumes:
+      - db_data:/var/lib/mysql
+    restart: always
+
+  testapp:
+    container_name: testapp
+    image: site:latest
+    ports:
+      - "8080:8000"
+    environment:
+      DB_TYPE: "maria"
+      DB_HOST: "db"
+      DB_PORT: "3306"
+      DB_NAME: "testdb"
+      DB_USER: "testc"
+      DB_PASS: "P@ssw0rd"
+    depends_on:
+      - db
+    restart: always
+
+volumes:
+  db_data:
+EOF
+
+systemctl disable --now ahttpd httpd2 nginx 2>/dev/null || true
+
+docker compose up -d
+sleep 5
+
+== Docker сообщит о создании сетей и контейнеров (Created / Started) ==
+
+docker compose ps
+curl localhost:8080 | head -n 20
+
+#HQ-CLI#
+apt-get update && apt-get install -y yandex-browser-stable
+
+XX
+ В графическом интерфейсе (GUI):
+Запустите Yandex Browser.
+Откройте первую вкладку и перейдите: http://192.168.1.10 (LAMP, порт 80 по умолчанию).
+Откройте вторую вкладку и перейдите: http://192.168.3.10:8080 (Docker, порт, который мы открыли).
+XX
+
+вы большие молодцы остался последний рывок
