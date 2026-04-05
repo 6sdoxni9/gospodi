@@ -1,0 +1,47 @@
+#HQ-SRV#
+apt-get update && apt-get install -y mdadm
+mdadm --create /dev/md0 --level=0 --raid-devices=2 /dev/sdb /dev/sdc --run
+cat /proc/mdstat
+
+== md0 : active raid0 sdc... sdb... ==
+
+mdadm --detail --scan | tee -a /etc/mdadm.conf
+mkfs.ext4 /dev/md0
+
+== Writing superblocks... done ==
+
+mkdir -p /raid
+echo "/dev/md0 /raid ext4 defaults 0 0" >> /etc/fstab
+mount -a
+df -h | grep /raid
+
+== строку с диском /dev/md0 размером около 2.0G, смонтированным в папку /raid ==
+
+#HQ-SRV#
+apt-get update && apt-get install -y nfs-server nfs-utils
+mkdir -p /raid/nfs
+chmod 777 /raid/nfs
+
+echo "/raid/nfs 192.168.2.0/28(rw,sync,no_root_squash,no_subtree_check)" > /etc/exports
+
+systemctl enable --now nfs-server
+exportfs -arv
+
+== exporting 192.168.2.0/28:/raid/nfs ==
+
+#HQ-CLI#
+apt-get update && apt-get install -y nfs-clients
+mkdir -p /mnt/nfs
+
+echo "192.168.1.10:/raid/nfs /mnt/nfs nfs defaults 0 0" >> /etc/fstab
+mount -a
+df -h | grep /mnt/nfs
+
+== Диск размером ~2.0G должен появиться в списке активных устройств. ==
+
+touch /mnt/nfs/test_file.txt
+ls -l /mnt/nfs
+
+== Наличие файла test_file.txt. Это доказывает, что NFS сервер разрешил вам запись (rw), а не только чтение. ==
+
+uraaaaaaa ostalos sovsem nemnogo
