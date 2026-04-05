@@ -1,0 +1,82 @@
+#BR-SRV#
+systemctl disable --now smb nmb krb5kdc slapd bind 2>/dev/null || true
+rm -f /etc/samba/smb.conf
+
+samba-tool domain provision
+
+XX 
+В мастере настройки samba-tool:
+Realm: Введите AU-TEAM.IRPO (строго заглавными буквами) и нажмите Enter.
+Domain: Значение [AU-TEAM] установлено по умолчанию. Нажмите Enter.
+Server Role: Значение [dc] установлено по умолчанию. Нажмите Enter.
+DNS backend: Значение [SAMBA_INTERNAL] установлено по умолчанию. Нажмите Enter.
+DNS forwarder IP address: Введите 77.88.8.8 и нажмите Enter.
+Administrator password: Введите P@ssw0rd и нажмите Enter. Подтвердите пароль.
+📥 Скопируйте конфигурацию Kerberos и запустите службу.
+XX
+
+cp -f /var/lib/samba/private/krb5.conf /etc/krb5.conf
+systemctl enable --now samba
+
+== Created symbolic link.. ==
+
+#BR-SRV#
+XX точное имя вашего сетевого интерфейса (например, enp7s1 или ens18) вместо ___. Узнать его можно командой ip a XX
+
+export IFACE=___
+
+echo "nameserver 127.0.0.1" > /etc/net/ifaces/$IFACE/resolv.conf
+echo "search au-team.irpo" >> /etc/net/ifaces/$IFACE/resolv.conf
+systemctl restart network
+
+host -t A au-team.irpo
+kinit administrator@AU-TEAM.IRPO
+klist
+
+samba-tool group add hq
+
+for i in {1..5}; do
+  samba-tool user add hquser$i P@ssw0rd
+  samba-tool user setexpiry hquser$i --noexpiry
+  samba-tool group addmembers "hq" hquser$i
+done
+
+samba-tool group listmembers hq
+
+#HQ-CLI#
+nmcli c show --active
+
+XX Впишите скопированное имя из столбца NAME вместо ___. Обязательно сохраните кавычки, так как в именах профилей часто встречаются пробелы! XX
+
+export CON_NAME="___"
+
+nmcli con mod "$CON_NAME" ipv4.dns "192.168.3.10"
+nmcli con mod "$CON_NAME" ipv4.ignore-auto-dns yes
+nmcli con up "$CON_NAME"
+
+system-auth write ad au-team.irpo hq-cli au-team administrator P@ssw0rd
+
+systemctl restart sssd
+sleep 3
+
+== No credentials cache found == ХХ просто игноритт ХХ
+
+control libnss-role enabled
+roleadd hq wheel
+
+cat <<EOF > /etc/sudoers.d/hq_restrictions
+Cmnd_Alias HQ_CMDS = /bin/cat, /bin/grep, /usr/bin/id
+%wheel ALL=(ALL) NOPASSWD: HQ_CMDS
+EOF
+
+mkdir -p /home/AU-TEAM.IRPO/hquser1
+cp -a /etc/skel/. /home/AU-TEAM.IRPO/hquser1/
+chown -R hquser1:hq /home/AU-TEAM.IRPO/hquser1
+
+su - hquser1
+
+sudo id
+sudo reboot
+
+ура второе задание гатови вы умнички
+
