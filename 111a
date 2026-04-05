@@ -1,0 +1,76 @@
+#имена машонок#
+#ISP#
+hostnamectl set-hostname isp.au-team.irpo && exec bash
+
+#HQ-RTR#
+hostnamectl set-hostname hq-rtr.au-team.irpo && exec bash
+
+#HQ-SRV#
+hostnamectl set-hostname hq-srv.au-team.irpo && exec bash
+
+#HQ-CLI#
+hostnamectl set-hostname hq-cli.au-team.irpo && exec bash
+
+#BR-RTR#
+hostnamectl set-hostname br-rtr.au-team.irpo && exec bash
+
+#BR-SRV#
+hostnamectl set-hostname br-srv.au-team.irpo && exec bash
+
+#ISP настройка#
+systemctl disable --now NetworkManager
+
+mkdir -p /etc/net/ifaces/enp7s1
+echo "TYPE=eth" > /etc/net/ifaces/enp7s1/options
+echo "BOOTPROTO=dhcp" >> /etc/net/ifaces/enp7s1/options
+
+mkdir -p /etc/net/ifaces/enp7s2
+echo "TYPE=eth" > /etc/net/ifaces/enp7s2/options
+echo "172.16.1.1/28" > /etc/net/ifaces/enp7s2/ipv4address
+
+mkdir -p /etc/net/ifaces/enp7s3
+echo "TYPE=eth" > /etc/net/ifaces/enp7s3/options
+echo "172.16.2.1/28" > /etc/net/ifaces/enp7s3/ipv4address
+
+systemctl restart network && ip -c a
+
+sed -i '/net.ipv4.ip_forward/d' /etc/net/sysctl.conf
+echo "net.ipv4.ip_forward = 1" >> /etc/net/sysctl.conf
+sysctl -w net.ipv4.ip_forward=1
+sysctl net.ipv4.ip_forward
+
+=== net.ipv4.ip_forward = 1 ===
+
+apt-get update && apt-get install -y nftables tzdata
+
+mkdir -p /etc/nftables
+cat <<EOF > /etc/nftables/nftables.nft
+#!/usr/sbin/nft -f
+flush ruleset
+
+table ip nat {
+    chain postrouting {
+        type nat hook postrouting priority srcnat;
+        oifname "enp7s1" masquerade
+    }
+}
+
+table ip filter {
+    chain forward {
+        type filter hook forward priority 0;
+        tcp flags syn tcp option maxseg size set 1400
+    }
+}
+EOF
+
+systemctl enable --now nftables
+nft list ruleset
+
+== oifname "enp7s1" masquerade ==
+
+timedatectl set-timezone Asia/Vladivostok
+date
+
+ping -c 2 8.8.8.8
+
+ура кайфарик готово
