@@ -1,0 +1,66 @@
+#HQ-RTR#
+systemctl disable --now NetworkManager
+
+mkdir -p /etc/net/ifaces/enp7s1
+
+echo "TYPE=eth" > /etc/net/ifaces/enp7s1/options
+echo "172.16.1.2/28" > /etc/net/ifaces/enp7s1/ipv4address
+echo "default via 172.16.1.1" > /etc/net/ifaces/enp7s1/ipv4route
+echo "nameserver 8.8.8.8" > /etc/net/ifaces/enp7s1/resolv.conf
+
+systemctl restart network
+
+ping -c 2 8.8.8.8
+
+#BR-RTR#
+systemctl disable --now NetworkManager
+
+mkdir -p /etc/net/ifaces/enp7s1
+
+echo "TYPE=eth" > /etc/net/ifaces/enp7s1/options
+echo "172.16.2.2/28" > /etc/net/ifaces/enp7s1/ipv4address
+echo "default via 172.16.2.1" > /etc/net/ifaces/enp7s1/ipv4route
+echo "nameserver 8.8.8.8" > /etc/net/ifaces/enp7s1/resolv.conf
+
+systemctl restart network
+
+ping -c 2 8.8.8.8
+
+#HQ-RTR#  #BR-RTR#
+apt-get update && apt-get install -y nftables frr dnsmasq tzdata
+timedatectl set-timezone Asia/Vladivostok
+date
+
+sed -i '/net.ipv4.ip_forward/d' /etc/net/sysctl.conf
+echo "net.ipv4.ip_forward = 1" >> /etc/net/sysctl.conf
+sysctl -w net.ipv4.ip_forward=1
+sysctl net.ipv4.ip_forward
+
+== net.ipv4.ip_forward = 1 ==
+
+mkdir -p /etc/nftables
+cat <<EOF > /etc/nftables/nftables.nft
+#!/usr/sbin/nft -f
+flush ruleset
+
+table ip nat {
+    chain postrouting {
+        type nat hook postrouting priority srcnat;
+        oifname "enp7s1" masquerade
+    }
+}
+
+table ip filter {
+    chain forward {
+        type filter hook forward priority 0;
+        tcp flags syn tcp option maxseg size set 1400
+    }
+}
+EOF
+
+systemctl enable --now nftables
+nft list ruleset
+
+== oifname "enp7s1" masquerade ==
+
+умнички готово кайфуйте
