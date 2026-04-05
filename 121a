@@ -1,0 +1,319 @@
+#ISP#
+cat <<EOF > /etc/nftables/nftables.nft
+#!/usr/sbin/nft -f
+flush ruleset
+table ip nat {
+    chain postrouting {
+        type nat hook postrouting priority srcnat;
+        oifname "enp7s1" masquerade
+    }
+}
+table ip filter {
+    chain forward {
+        type filter hook forward priority 0;
+        tcp flags syn tcp option maxseg size set 1400
+    }
+}
+EOF
+
+systemctl restart nftables
+
+sed -i
+'s|http://ftp.altlinux.org/pub/distributions/ALTLinux|http://10.45.33.250:3142/altlinux|g' /etc/apt/sources.list.d/alt.list
+apt-get update && apt-get install -y chrony
+
+#HQ-RTR#
+echo "nameserver 77.88.8.8" > /etc/resolv.conf
+sed -i 's|http://ftp.altlinux.org/pub/distributions/ALTLinux|http://10.45.33.250:3142/altlinux|g' /etc/apt/sources.list.d/alt.list
+apt-get update && apt-get install -y chrony
+
+sed -i 's/192.168.1.10/192.168.3.10/' /etc/dnsmasq.conf
+
+sed -i 's/192.168.1.10/192.168.3.10/' /etc/net/ifaces/*/resolv.conf 2>/dev/null || true
+
+cat <<EOF > /etc/openssh/sshd_config
+Port 22
+PermitRootLogin yes
+Subsystem sftp /usr/lib/openssh/sftp-server
+EOF
+
+systemctl enable sshd
+systemctl restart dnsmasq network sshd
+
+#HQ-SRV#
+echo "nameserver 77.88.8.8" > /etc/resolv.conf
+sed -i 's|http://ftp.altlinux.org/pub/distributions/ALTLinux|http://10.45.33.250:3142/altlinux|g' /etc/apt/sources.list.d/alt.list
+apt-get update && apt-get install -y chrony
+
+systemctl disable --now bind 2>/dev/null || true
+
+sed -i -E 's/(192\.168\.1\.10|127\.0\.0\.1)/192.168.3.10/' /etc/net/ifaces/*/resolv.conf 
+2>/dev/null || true
+
+cat <<EOF > /etc/openssh/sshd_config
+Port 22
+PermitRootLogin yes
+Subsystem sftp /usr/lib/openssh/sftp-server
+EOF
+
+systemctl enable sshd
+systemctl restart network sshd
+systemctl is-active bind
+
+#HQ-CLI#
+cat <<EOF > /etc/openssh/sshd_config
+Port 22
+PermitRootLogin yes
+Subsystem sftp /usr/lib/openssh/sftp-server
+EOF
+
+systemctl enable --now sshd
+
+echo "nameserver 77.88.8.8" > /etc/resolv.conf
+sed -i 
+'s|http://ftp.altlinux.org/pub/distributions/ALTLinux|http://10.45.33.250:3142/altlinux|g' /etc/apt/sources.list.d/alt.list
+apt-get update && apt-get install -y chrony task-auth-ad-sssd libnss-role
+
+#BR-RTR#
+echo "nameserver 77.88.8.8" > /etc/resolv.conf
+sed -i 's|http://ftp.altlinux.org/pub/distributions/ALTLinux|http://10.45.33.250:3142/altlinux|g' /etc/apt/sources.list.d/alt.list
+apt-get update && apt-get install -y chrony
+
+sed -i 's/192.168.1.10/192.168.3.10/' /etc/net/ifaces/*/resolv.conf 2>/dev/null || true
+
+cat <<EOF > /etc/openssh/sshd_config
+Port 22
+PermitRootLogin yes
+Subsystem sftp /usr/lib/openssh/sftp-server
+EOF
+
+systemctl enable sshd
+systemctl restart network sshd
+
+#BR-SRV#
+echo "nameserver 77.88.8.8" > /etc/resolv.conf
+sed -i 
+'s|http://ftp.altlinux.org/pub/distributions/ALTLinux|http://10.45.33.250:3142/altlinux|g' /etc/apt/sources.list.d/alt.list
+apt-get update && apt-get install -y chrony ansible sshpass task-samba-dc bind-utils
+
+systemctl disable --now bind 2>/dev/null || true
+
+sed -i 's/192.168.1.10/192.168.3.10/' /etc/net/ifaces/*/resolv.conf 2>/dev/null || true
+
+cat <<EOF > /etc/openssh/sshd_config
+Port 22
+PermitRootLogin yes
+Subsystem sftp /usr/lib/openssh/sftp-server
+EOF
+
+
+systemctl enable sshd
+systemctl restart network sshd
+
+ansible --version
+
+#HQ-SRV#
+echo "nameserver 77.88.8.8" > /etc/resolv.conf
+sed -i 's|http://ftp.altlinux.org/pub/distributions/ALTLinux|http://10.45.33.250:3142/altlinux|g' /etc/apt/sources.list.d/alt.list
+apt-get update && apt-get install -y chrony
+
+cat <<EOF > /etc/openssh/sshd_config
+Port 22
+PermitRootLogin yes
+Subsystem sftp /usr/lib/openssh/sftp-server
+EOF
+
+echo "root:P@ssw0rd" | chpasswd
+
+sed -i 's|172.16.100.2.*|192.168.1.10/27|' /etc/net/ifaces/*/ipv4address 2>/dev/null || true
+sed -i 's|172.16.100.1.*|192.168.1.1|' /etc/net/ifaces/*/ipv4route 2>/dev/null || true
+sed -i -E 's/(172\.16\.100\.2|127\.0\.0\.1)/192.168.3.10/' /etc/net/ifaces/*/resolv.conf 2>/dev/null || true
+
+systemctl disable --now bind 2>/dev/null || true
+systemctl enable sshd
+
+reboot
+
+#HQ-CLI#
+echo "nameserver 77.88.8.8" > /etc/resolv.conf
+sed -i 
+'s|http://ftp.altlinux.org/pub/distributions/ALTLinux|http://10.45.33.250:3142/altlinux|g' /etc/apt/sources.list.d/alt.list
+apt-get update && apt-get install -y chrony task-auth-ad-sssd libnss-role
+
+cat <<EOF > /etc/openssh/sshd_config
+Port 22
+PermitRootLogin yes
+Subsystem sftp /usr/lib/openssh/sftp-server
+EOF
+
+echo "root:P@ssw0rd" | chpasswd
+
+systemctl enable sshd
+
+nmcli con down lan && nmcli con up lan
+
+reboot
+
+#HQ-RTR#
+echo "nameserver 77.88.8.8" > /etc/resolv.conf
+sed -i 
+'s|http://ftp.altlinux.org/pub/distributions/ALTLinux|http://10.45.33.250:3142/altlinux|g' /etc/apt/sources.list.d/alt.list
+apt-get update && apt-get install -y chrony
+
+cat <<EOF > /etc/openssh/sshd_config
+Port 22
+PermitRootLogin yes
+Subsystem sftp /usr/lib/openssh/sftp-server
+EOF
+
+echo "root:P@ssw0rd" | chpasswd
+
+sed -i 's|172.16.1.2.*|172.16.1.10/28|' /etc/net/ifaces/*/ipv4address 2>/dev/null || true
+sed -i 's|172.16.100.1.*|192.168.1.1/27|' /etc/net/ifaces/*/ipv4address 2>/dev/null || true
+sed -i 's|172.16.200.1.*|192.168.2.1/28|' /etc/net/ifaces/*/ipv4address 2>/dev/null || true
+sed -i 's|172.16.99.1.*|192.168.9.1/29|' /etc/net/ifaces/*/ipv4address 2>/dev/null || true
+sed -i 's|10.10.10.1.*|192.168.5.1/30|' /etc/net/ifaces/*/ipv4address 2>/dev/null || true
+
+grep -rl "172.16.1.2" /etc/net/ifaces/ | xargs -r sed -i 's/172.16.1.2/172.16.1.10/'
+grep -rl "172.16.100.2" /etc/net/ifaces/ | xargs -r sed -i 's/172.16.100.2/192.168.3.10/'
+grep -rl "172.16.2.2" /etc/net/ifaces/ | xargs -r sed -i 's/172.16.2.2/172.16.2.10/'
+
+MY_IFACE=$(grep "^interface=" /etc/dnsmasq.conf)
+
+cat <<EOF > /etc/dnsmasq.conf
+port=0
+$MY_IFACE
+dhcp-range=192.168.2.2,192.168.2.14,255.255.255.240,12h
+dhcp-host=id:01:11:11:11:11:11,192.168.2.10
+dhcp-option=3,192.168.2.1
+dhcp-option=6,192.168.3.10
+domain=au-team.irpo
+EOF
+
+systemctl enable sshd
+
+reboot
+
+#BR-SRV#
+echo "nameserver 77.88.8.8" > /etc/resolv.conf
+sed -i 
+'s|http://ftp.altlinux.org/pub/distributions/ALTLinux|http://10.45.33.250:3142/altlinux|g' /etc/apt/sources.list.d/alt.list
+apt-get update && apt-get install -y chrony ansible sshpass task-samba-dc bind-utils
+
+cat <<EOF > /etc/openssh/sshd_config
+Port 22
+PermitRootLogin yes
+Subsystem sftp /usr/lib/openssh/sftp-server
+EOF
+
+echo "root:P@ssw0rd" | chpasswd
+
+sed -i 's|172.16.10.2.*|192.168.3.10/28|' /etc/net/ifaces/*/ipv4address 2>/dev/null || true
+sed -i 's|172.16.10.1.*|192.168.3.1|' /etc/net/ifaces/*/ipv4route 2>/dev/null || true
+grep -rl "172.16.100.2" /etc/net/ifaces/ | xargs -r sed -i 's/172.16.100.2/192.168.3.10/'
+
+systemctl disable --now bind
+systemctl enable sshd
+
+reboot
+
+#BR-RTR#
+echo "nameserver 77.88.8.8" > /etc/resolv.conf
+sed -i 
+'s|http://ftp.altlinux.org/pub/distributions/ALTLinux|http://10.45.33.250:3142/altlinux|g' /etc/apt/sources.list.d/alt.list
+apt-get update && apt-get install -y chrony
+
+cat <<EOF > /etc/openssh/sshd_config
+Port 22
+PermitRootLogin yes
+Subsystem sftp /usr/lib/openssh/sftp-server
+EOF
+
+echo "root:P@ssw0rd" | chpasswd
+
+sed -i 's|172.16.10.1.*|192.168.3.1/28|' /etc/net/ifaces/*/ipv4address 2>/dev/null || true
+sed -i 's|10.10.10.2.*|192.168.5.2/30|' /etc/net/ifaces/*/ipv4address 2>/dev/null || true
+
+grep -rl "172.16.2.2" /etc/net/ifaces/ | xargs -r sed -i 's/172.16.2.2/172.16.2.10/'
+grep -rl "172.16.1.2" /etc/net/ifaces/ | xargs -r sed -i 's/172.16.1.2/172.16.1.10/'
+grep -rl "172.16.100.2" /etc/net/ifaces/ | xargs -r sed -i 's/172.16.100.2/192.168.3.10/'
+
+systemctl enable sshd
+
+reboot
+
+#HQ-CLI#
+ip -br -c a
+ping -c 3 192.168.3.10
+
+#BR-SRV#
+ping -c 2 192.168.1.1
+
+#ISP#
+apt-get update && apt-get install -y chrony
+
+cat <<EOF >> /etc/chrony.conf
+port 123
+local stratum 5
+allow 0.0.0.0/0
+EOF
+
+systemctl enable --now chronyd
+ss -ulnp | grep 123
+chronyc tracking
+== Команда ss должна показать 0.0.0.0:123 (порт открыт). Команда tracking должна содержать строку Stratum : 5 (или меньше, если есть внешняя связь). ==
+
+#HQ-RTR#, #HQ-SRV#, #HQ-CLI#
+sed -i '/pool/d' /etc/chrony.conf
+sed -i '/server/d' /etc/chrony.conf
+echo "server 172.16.1.1 iburst prefer" >> /etc/chrony.conf
+
+systemctl restart chronyd
+sleep 10 && chronyc sources
+
+#BR-RTR#, #BR-SRV#
+sed -i '/pool/d' /etc/chrony.conf
+sed -i '/server/d' /etc/chrony.conf
+echo "server 172.16.2.1 iburst prefer" >> /etc/chrony.conf
+
+systemctl restart chronyd
+sleep 10 && chronyc sources
+
+#BR-SRV#
+XX Впишите ваш текущий пароль (toor или P@ssw0rd) вместо прочерков ___ в файле хостов. XX
+
+mkdir -p /etc/ansible
+
+cat <<EOF > /etc/ansible/ansible.cfg
+[defaults]
+inventory = /etc/ansible/hosts
+host_key_checking = False
+EOF
+
+cat <<EOF > /etc/ansible/hosts
+[all:vars]
+ansible_user=root
+ansible_password=___
+ansible_python_interpreter=/usr/bin/python3
+
+[targets]
+192.168.1.10    # HQ-SRV
+192.168.2.10    # HQ-CLI
+192.168.1.1     # HQ-RTR (LAN)
+192.168.3.1     # BR-RTR (LAN)
+EOF
+
+ansible all -m ping
+
+==
+192.168.3.1 | SUCCESS => {
+   "changed": false,
+   "ping": "pong"
+}
+192.168.1.1 | SUCCESS => {
+   "changed": false,
+   "ping": "pong"
+}
+==
+
+заебись начало положено я пишу это с огромным пузом в три ночи
