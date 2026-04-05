@@ -1,0 +1,131 @@
+#BR-RTR#
+mkdir -p /etc/net/ifaces/enp7s2
+echo "TYPE=eth" > /etc/net/ifaces/enp7s2/options
+echo "172.16.10.1/28" > /etc/net/ifaces/enp7s2/ipv4address
+
+systemctl restart network && ip -c a
+
+== 3: enp7s2: ... inet 172.16.10.1/28 ... ==
+
+#BR-SRV#
+systemctl disable --now NetworkManager
+
+mkdir -p /etc/net/ifaces/enp7s1
+echo "TYPE=eth" > /etc/net/ifaces/enp7s1/options
+echo "172.16.10.2/28" > /etc/net/ifaces/enp7s1/ipv4address
+echo "default via 172.16.10.1" > /etc/net/ifaces/enp7s1/ipv4route
+echo "nameserver 8.8.8.8" > /etc/net/ifaces/enp7s1/resolv.conf
+
+systemctl restart network
+
+timedatectl set-timezone Asia/Vladivostok
+
+ping -c 2 172.16.10.1
+
+#HQ-RTR#
+mkdir -p /etc/net/ifaces/gre1
+cat << EOF > /etc/net/ifaces/gre1/options
+TYPE=iptun
+TUNTYPE=gre
+TUNLOCAL=172.16.1.2
+TUNREMOTE=172.16.2.2
+TUNTTL=64
+TUNOPTIONS='ttl 64'
+EOF
+
+echo "10.10.10.1/30" > /etc/net/ifaces/gre1/ipv4address
+
+systemctl restart network && ip -c a show gre1
+
+==
+... <POINTOPOINT,NOARP,UP,LOWER_UP> ...
+... inet 10.10.10.1/30 ...
+==
+
+#BR-RTR#
+mkdir -p /etc/net/ifaces/gre1
+cat << EOF > /etc/net/ifaces/gre1/options
+TYPE=iptun
+TUNTYPE=gre
+TUNLOCAL=172.16.2.2
+TUNREMOTE=172.16.1.2
+TUNTTL=64
+TUNOPTIONS='ttl 64'
+EOF
+
+echo "10.10.10.2/30" > /etc/net/ifaces/gre1/ipv4address
+systemctl restart network
+
+ping -c 2 10.10.10.1
+
+#HQ-RTR#
+sed -i 's/ospfd=no/ospfd=yes/' /etc/frr/daemons
+
+cat <<'EOF' > /etc/frr/frr.conf
+interface gre
+ no ip ospf passive
+exit
+!
+interface gre1
+ ip ospf area 0
+ ip ospf authentication
+ ip ospf authentication-key P@ssw0rd
+ no ip ospf passive
+exit
+!
+interface vlan100
+ ip ospf area 0
+exit
+!
+interface vlan200
+ ip ospf area 0
+exit
+!
+interface vlan999
+ ip ospf area 0
+exit
+!
+router ospf
+ passive-interface default
+exit
+EOF
+
+systemctl enable --now frr
+
+#BR-RTR#
+sed -i 's/ospfd=no/ospfd=yes/' /etc/frr/daemons
+
+XX Замените enp7s2 на имя вашего LAN-интерфейса (обычно ens20) XX
+
+cat <<'EOF' > /etc/frr/frr.conf
+interface gre1
+ ip ospf area 0
+ ip ospf authentication
+ ip ospf authentication-key P@ssw0rd
+ no ip ospf passive
+exit
+!
+interface enp7s2
+ ip ospf area 0
+exit
+!
+router ospf
+ passive-interface default
+exit
+EOF
+
+systemctl enable --now frr
+
+XX чучут 15 секунд перекурим и дальше ХХ
+
+vtysh -c "show ip ospf neighbor"
+
+== 172.16.10.1       1 Full/-          ... 10.10.10.2      gre1:10.10.10.1 ==
+
+#HQ-SRV#
+ping -c 2 172.16.10.2
+
+#HQ-RTR#
+ip route | grep ospf
+
+разьеб разьб умнечке умнечке
